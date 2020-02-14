@@ -83,9 +83,14 @@ if __name__ == '__main__':
     np.random.seed(0)
 
     contextual = False
-
+    # Baselines
     if args.algorithm == 'random':
         bandit = Random(num_arms)
+    elif args.algorithm == 'static-best':
+        bandit = StaticBest(num_arms)
+    elif args.algorithm == 'optimal':
+        bandit = Optimal(num_arms)
+    # Bandits strategies
     elif args.algorithm == 'epsilon-greedy':
         args.epsilon = 0.1
         args.epsilon_decay = 1.
