@@ -195,27 +195,52 @@ class UCBV(BaseBandit):
             *(reward**2 - self.means_sq[arm])
 
 
-# class LinUCB(BaseContextualBandit):
-#     """Lin-UCB contextual strategy.
-#     """
-#     #@todo
-#     def __init__(self, num_arms):
-#         super(LinUCB, self).__init__(num_arms)
-#         # means of click rates
-#         self.means = np.zeros(num_arms)
-#         # number of time each arm has been chosen
-#         self.clicks = np.zeros(num_arms)
-#         # current iteration
-#         self.t = 0
+class LinUCB(BaseContextualBandit):
+    """Lin-UCB contextual strategy. From Li et al. 2010 (https://arxiv.org/abs/1003.0146)
+    """
+    #@todo
+    def __init__(self, num_arms, context_dim, alpha=0.5):
+        super(LinUCB, self).__init__(num_arms)
 
-#     def choose(self):
-#         # init phase: try every arm once
-#         if self.t < self.num_arms:
-#             return self.t
-#         return
+        self.context_dim = context_dim
+        self.alpha = alpha
+        # Initialize the context matrix A and reward vector b
+        self.A = np.tile(np.eye(context_dim, context_dim), (num_arms, 1, 1))
+        self.A_inv = self.A  # inverse of A
+        self.b = np.zeros((num_arms, context_dim))
+        # weight parameters
+        self.theta = np.zeros((num_arms, context_dim))
+        # current iteration
+        self.t = 0
 
-#     def update(self, arm, reward):
-#         self.clicks[arm] += 1
-#         self.means[arm] = self.means[arm] + 1/self.clicks[arm]\
-#                           *(reward - self.means[arm])
-#         pass
+    def choose(self, context):
+        """Note: context here is a global vector: same context for every possible arms."""
+        # # init phase: try every arm once
+        # if self.t < self.num_arms:
+        #     return self.t
+
+        # Compute upper bounds on the linear function output
+        bounds = np.array([
+            self.theta[a].dot(context) + self.alpha * \
+                (context.dot(self.A_inv[a]).dot(context)) ** 0.5
+            for a in range(self.num_arms) ])
+
+        assert(bounds.shape == (self.num_arms,))
+
+        self.lcontext = context
+
+        arm = np.argmax(bounds)
+        return arm
+
+    def update(self, arm, reward):
+
+        context = self.lcontext
+        # Update matrices A and vectors b
+        self.A[arm] += context.reshape(-1, 1).dot(context.reshape(1, -1))
+        self.b[arm] += reward * context
+        self.A_inv = np.linalg.inv(self.A)
+        # Update parameters
+        self.theta = np.stack([
+            self.A_inv[a].dot(self.b[a]) for a in range(self.num_arms)], axis=0
+        )
+        assert(self.theta.shape == (self.num_arms, self.context_dim))
