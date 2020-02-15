@@ -29,6 +29,10 @@ def get_expected_rewards(click_rates):
     """
     return np.mean(np.stack(click_rates, 0), 0)
 
+def get_moving_average(rewards):
+    """Return the moving average of the rewards over time."""
+    return np.cumsum(rewards) / np.arange(1, len(rewards)+1)
+
 
 def train(bandit, click_rates, profiles, contextual=True):
 
@@ -42,7 +46,7 @@ def train(bandit, click_rates, profiles, contextual=True):
     pulled_arms = list()
     rewards_list = list()
 
-    for j, (rewards, contexts) in enumerate((zip(click_rates, profiles)), 1):
+    for j, (rewards, context) in enumerate((zip(click_rates, profiles)), 1):
 
         if hasattr(bandit, 'cheater'):
             # pull an arm knowing the rewards at current iteration
@@ -50,7 +54,7 @@ def train(bandit, click_rates, profiles, contextual=True):
         else:
             # pull an arm
             if contextual:
-                arm = bandit.choose(contexts)
+                arm = bandit.choose(context)
             else:
                 arm = bandit.choose()
 
@@ -74,7 +78,7 @@ def train(bandit, click_rates, profiles, contextual=True):
     return pulled_arms, rewards_list
     # rsum_list, ravg_list, regret_list
 
-def get_bandit_instance(name, num_arms, **kwargs):
+def get_bandit_instance(name, num_arms, context_dim=None, **kwargs):
 
     mapping = {'random': lambda: Random(num_arms),
                'static-best': lambda: StaticBest(num_arms),
@@ -82,7 +86,7 @@ def get_bandit_instance(name, num_arms, **kwargs):
                'epsilon-greedy': lambda: EpsilonGreedy(num_arms, **kwargs),
                'ucb': lambda: UCB(num_arms),
                'ucb-v': lambda: UCBV(num_arms),
-               'lin-ucb': lambda: LinUCB(num_arms)}
+               'lin-ucb': lambda: LinUCB(num_arms, context_dim, **kwargs)}
 
     try:
         return mapping[name]()
@@ -94,8 +98,9 @@ if __name__ == '__main__':
 
     args = parse_args()
     profiles, click_rates = load_ctr_data('ctr_data.txt')
-    num_arms = 10
-    num_articles = 5000
+    num_arms = click_rates[0].shape[0]
+    num_articles = len(click_rates)
+    context_dim = profiles[0].shape[0]
 
     random.seed(0)
     np.random.seed(0)
@@ -103,7 +108,9 @@ if __name__ == '__main__':
     kwargs = dict()
     if args.algorithm == 'epsilon-greedy':
         kwargs = dict(epsilon=0.1, epsilon_decay=0.999)
-    bandit = get_bandit_instance(args.algorithm, num_arms, **kwargs)
+    if args.algorithm == 'in-ucb':
+        kwargs = dict(alpha=0.5)
+    bandit = get_bandit_instance(args.algorithm, num_arms, context_dim, **kwargs)
     contextual = False
     if args.algorithm == 'lin-ucb':
         contextual = True
@@ -119,15 +126,20 @@ if __name__ == '__main__':
         # sns.set()
         plt.style.use('seaborn')
         # Get average rewards
-        avg_rewards = np.cumsum(rewards) / np.arange(1, num_articles+1)
+        avg_rewards = get_moving_average(rewards)
+        # Get rewards standard deviation
+        std_rewards = (get_moving_average(np.power(rewards, 2)) - avg_rewards**2)** 0.5
         # Plot
         fig, axs = plt.subplots(2, figsize=(12,8))
         axs[0].plot(range(num_articles), avg_rewards, label=args.algorithm)
         # plt.plot(range(num_articles), regret_list, label='Regret')
-        axs[0].set_ylabel('Avg reward')
-        axs[0].legend()
+        axs[0].fill_between(range(num_articles), avg_rewards - std_rewards/2,
+                            avg_rewards + std_rewards/2, alpha=0.4)
         axs[1].scatter(range(num_articles), pulled_arms, s=3., alpha=0.8, facecolor=None, label=args.algorithm)
+
+        axs[0].set_ylabel('Avg reward')
+        axs[0].legend(loc='lower right')
         axs[1].set_ylabel('Pulled arm')
-        axs[1].set_yticks(range(10))
+        axs[1].set_yticks(range(num_arms))
         plt.tight_layout()
         plt.show()
