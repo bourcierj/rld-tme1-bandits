@@ -107,6 +107,7 @@ class EpsilonGreedy(BaseBandit):
         # current iteration
         self.t = 0
         self.epsilon = epsilon
+        self.epsilon_decay = epsilon_decay
 
     def choose(self):
         # init phase: try every arm once
@@ -116,6 +117,8 @@ class EpsilonGreedy(BaseBandit):
             arm = np.random.randint(self.num_arms)
         else:  # exploit
             arm = np.argmax(self.means)
+
+        self.epsilon *= self.epsilon_decay
         return arm
 
     def update(self, arm, reward):
