@@ -1,6 +1,8 @@
 import argparse
 import random
 import numpy as np
+import time
+from datetime import timedelta
 
 from bandits import *
 
@@ -25,7 +27,7 @@ def load_ctr_data(filename):
     return (profiles, click_rates)
 
 def get_expected_rewards(click_rates):
-    """Returns the expected rewards of every arm from the click rates data
+    """Returns the expected rewards of every advertiser from the click rates data
     """
     return np.mean(np.stack(click_rates, 0), 0)
 
@@ -45,6 +47,7 @@ def train(bandit, click_rates, profiles, contextual=True):
     best_rsum = 0.  # cumulated reward of the optimal arm
     pulled_arms = list()
     rewards_list = list()
+    since = time.time()
 
     for j, (rewards, context) in enumerate((zip(click_rates, profiles)), 1):
 
@@ -67,10 +70,9 @@ def train(bandit, click_rates, profiles, contextual=True):
         pulled_arms.append(arm)
         rewards_list.append(reward)
 
-
+    print('Done. Time: {}'.format(timedelta(seconds=time.time() - since)))
     print("Cumulated reward: {}".format(rsum))
     print("Empirical regret: {}".format(best_rsum - rsum))
-
     # Post-process results
     # ravg_list = (rsum_list / np.arange(1, j+1)).tolist()
     # regret_list = np.subtract(best_rsum_list, rsum_list).tolist()
@@ -108,13 +110,19 @@ if __name__ == '__main__':
     kwargs = dict()
     if args.algorithm == 'epsilon-greedy':
         kwargs = dict(epsilon=0.1, epsilon_decay=0.999)
-    if args.algorithm == 'in-ucb':
-        kwargs = dict(alpha=0.5)
+    if args.algorithm == 'lin-ucb':
+        kwargs = dict(alpha=0.16)
+
     bandit = get_bandit_instance(args.algorithm, num_arms, context_dim, **kwargs)
     contextual = False
     if args.algorithm == 'lin-ucb':
         contextual = True
 
+    print("Expected reward of every advertiser:")
+
+    print(("{:<12}" + "{:<12d}" * num_arms).format("Advertiser", *range(num_arms)))
+    print(("{:<12}" + "{:<12.5f}" * num_arms).format("Reward", *get_expected_rewards(click_rates)))
+    print()
     print("Evaluating {} strategy on CTR data.".format(args.algorithm.upper()))
 
     pulled_arms, rewards = \

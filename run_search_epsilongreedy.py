@@ -14,6 +14,7 @@ if __name__ == '__main__':
 
     random.seed(0)
     np.random.seed(0)
+
     # Define hyperparameters grid
     grid = {'epsilon': [0.3, 0.2, 0.15, 0.10, 0.05, 0.01],
             'epsilon_decay': [1., 0.9999, 0.999, 0.99, 0.9]
@@ -28,7 +29,7 @@ if __name__ == '__main__':
     optim_rsum = 0.
     optim_params = dict()
     for run, (epsilon, epsilon_decay) in enumerate(combinations, 1):
-        bandit= EpsilonGreedy(num_arms, epsilon, epsilon_decay)
+        bandit = EpsilonGreedy(num_arms, epsilon, epsilon_decay)
         print("Run {}: epsilon={}, epsilon_decay={}".format(run, epsilon, epsilon_decay))
         pulled_arms, rewards = \
             train(bandit, click_rates, profiles, contextual=False)
