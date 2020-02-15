@@ -9,6 +9,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Bandits algorithm on a click-through "
                                      "rate dataset.")
     parser.add_argument('--algorithm', '-a', type=str, default='epsilon-greedy')
+    parser.add_argument('--plot', action='store_true')
     return parser.parse_args()
 
 
@@ -37,10 +38,10 @@ def train(bandit, click_rates, profiles, contextual=True):
     rsum = 0.  # cumulated reward
     # to compute the regret:
     best_arm = np.argmax(get_expected_rewards(click_rates))
-    best_rsum = 0.
+    best_rsum = 0.  # cumulated reward of the optimal arm
     pulled_arms = list()
-    rsum_list = list()
-    best_rsum_list = list()
+    rewards_list = list()
+
     for j, (rewards, contexts) in enumerate((zip(click_rates, profiles)), 1):
 
         if hasattr(bandit, 'cheater'):
@@ -56,21 +57,37 @@ def train(bandit, click_rates, profiles, contextual=True):
         reward = rewards[arm]
         # Update the agent internal state
         bandit.update(arm, reward)
+
         rsum += reward
-        # update regret
         best_rsum += rewards[best_arm]
         pulled_arms.append(arm)
-        rsum_list.append(rsum)
-        best_rsum_list.append(best_rsum)
+        rewards_list.append(reward)
+
 
     print("Cumulated reward: {}".format(rsum))
     print("Empirical regret: {}".format(best_rsum - rsum))
 
     # Post-process results
-    ravg_list = (np.cumsum(rsum_list) / np.arange(1, j+1)).tolist()
-    regret_list = np.subtract(best_rsum_list, rsum_list).tolist()
+    # ravg_list = (rsum_list / np.arange(1, j+1)).tolist()
+    # regret_list = np.subtract(best_rsum_list, rsum_list).tolist()
 
-    return pulled_arms, rsum_list, ravg_list, regret_list
+    return pulled_arms, rewards_list
+    # rsum_list, ravg_list, regret_list
+
+def get_bandit_instance(name, num_arms, **kwargs):
+
+    mapping = {'random': lambda: Random(num_arms),
+               'static-best': lambda: StaticBest(num_arms),
+               'optimal': lambda: Optimal(num_arms),
+               'epsilon-greedy': lambda: EpsilonGreedy(num_arms, **kwargs),
+               'ucb': lambda: UCB(num_arms),
+               'ucb-v': lambda: UCBV(num_arms),
+               'lin-ucb': lambda: LinUCB(num_arms)}
+
+    try:
+        return mapping[name]()
+    except KeyError:
+        raise ValueError("Unknown algorithm: {}".format(name))
 
 
 if __name__ == '__main__':
@@ -78,67 +95,39 @@ if __name__ == '__main__':
     args = parse_args()
     profiles, click_rates = load_ctr_data('ctr_data.txt')
     num_arms = 10
+    num_articles = 5000
 
     random.seed(0)
     np.random.seed(0)
 
+    kwargs = dict()
+    if args.algorithm == 'epsilon-greedy':
+        kwargs = dict(epsilon=0.1, epsilon_decay=0.999)
+    bandit = get_bandit_instance(args.algorithm, num_arms, **kwargs)
     contextual = False
-    # Baselines
-    if args.algorithm == 'random':
-        bandit = Random(num_arms)
-    elif args.algorithm == 'static-best':
-        bandit = StaticBest(num_arms)
-    elif args.algorithm == 'optimal':
-        bandit = Optimal(num_arms)
-    # Bandits strategies
-    elif args.algorithm == 'epsilon-greedy':
-        args.epsilon = 0.1
-        args.epsilon_decay = 1.
-        bandit = EpsilonGreedy(num_arms, args.epsilon, args.epsilon_decay)
-    elif args.algorithm == 'ucb':
-        bandit = UCB(num_arms)
-    elif args.algorithm == 'ucb-v':
-        bandit = UCBV(num_arms)
-    elif args.algorithm == 'lin-ucb':
-        bandit = LinUCB(num_arms)
+    if args.algorithm == 'lin-ucb':
         contextual = True
-    else:
-        raise ValueError("Unknown algorithm: {}".format(args.algorithm))
 
-    print("Evaluating {} strategy on CTR data".format(args.algorithm.upper()))
+    print("Evaluating {} strategy on CTR data.".format(args.algorithm.upper()))
 
-    pulled_arms, rsum_list, ravg_list, regret_list = \
+    pulled_arms, rewards = \
         train(bandit, click_rates, profiles, contextual)
 
-
-
-    # print("Evaluating bandit {} on CTR data".format(bandit.__class__.__name__))
-
-    # rsum = 0.  # cumulated reward
-    # # to compute the regret:
-    # best_arm = np.argmax(get_expected_rewards(click_rates))
-    # best_rsum = 0.
-    # pulled_arms = list()
-    # from tqdm import tqdm
-    # for rewards, contexts in tqdm(zip(click_rates, profiles)):
-
-    #     if hasattr(bandit, 'cheater'):
-    #         # pull an arm knowing the rewards at current iteration
-    #         arm = bandit.choose(rewards)
-    #     else:
-    #         # pull an arm
-    #         if contexts is not None:
-    #             arm = bandit.choose(contexts)
-    #         else:
-    #             arm = bandit.choose()
-
-    #     reward = rewards[arm]
-    #     # Update the agent internal state
-    #     bandit.update(arm, reward)
-    #     rsum += reward
-    #     # update regret
-    #     best_rsum += rewards[best_arm]
-    #     pulled_arms.append(arm)
-
-    # print("Cumulated reward: {}".format(rsum))
-    # print("Empirical regret: {}".format(best_rsum - rsum))
+    if args.plot:
+        import matplotlib.pyplot as plt
+        # import seaborn as sns
+        # sns.set()
+        plt.style.use('seaborn')
+        # Get average rewards
+        avg_rewards = np.cumsum(rewards) / np.arange(1, num_articles+1)
+        # Plot
+        fig, axs = plt.subplots(2, figsize=(12,8))
+        axs[0].plot(range(num_articles), avg_rewards, label=args.algorithm)
+        # plt.plot(range(num_articles), regret_list, label='Regret')
+        axs[0].set_ylabel('Avg reward')
+        axs[0].legend()
+        axs[1].scatter(range(num_articles), pulled_arms, s=3., alpha=0.8, facecolor=None, label=args.algorithm)
+        axs[1].set_ylabel('Pulled arm')
+        axs[1].set_yticks(range(10))
+        plt.tight_layout()
+        plt.show()
