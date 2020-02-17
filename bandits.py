@@ -181,7 +181,7 @@ class UCBV(BaseBandit):
         t = self.t+1
         # return arm with maximum upper confidence bound
         bounds = self.means + (2* np.log(t) * variances / self.clicks)** 0.5 \
-            + np.log(t) / 2* self.clicks
+            + np.log(t) / (2* self.clicks)
 
         arm = np.argmax(bounds)
         return arm
