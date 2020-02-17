@@ -1,5 +1,7 @@
 import itertools
 import random
+from tqdm import tqdm
+
 import numpy as np
 
 if __name__ == '__main__':
@@ -16,32 +18,41 @@ if __name__ == '__main__':
     np.random.seed(0)
 
     # Define hyperparameters grid
-    grid = {'alpha': np.arange(0.0, 2.1, 0.1).tolist()}
+    grid = {'alpha': np.arange(0.11, 0.26, 0.01).tolist()}
+
     # generate combinations
     params = sorted(grid)
     combinations = itertools.product(*(grid['alpha'],))
 
-    print("Evaluating LIN-UCB strategy on CTR data.")
-
+    n_configs = len(grid['alpha'])
+    print("Tuning LIN-UCB strategy on CTR data.")
+    print('Number of configs: {}'.format(n_configs))
     optim_run = 0.
-    optim_rsum = 0.
+    optim_metric = -float('inf')
     optim_params = dict()
-    for run, (alpha,) in enumerate(combinations, 1):
-        bandit = LinUCB(num_arms, context_dim, alpha)
-        print("Run {}: alpha={}".format(run, alpha))
-        pulled_arms, rewards = \
-            train(bandit, click_rates, profiles, contextual=True)
 
-        rsum = np.sum(rewards)
-        if rsum > optim_rsum:
-            print('New best')
-            optim_rsum = rsum
+    for run, (alpha,) in enumerate(combinations, 1):
+        metric = 0.
+        print("Config {}: alpha={}".format(run, alpha))
+        bandit = LinUCB(num_arms, context_dim, alpha)
+        pulled_arms, rewards = \
+            train(bandit, click_rates, profiles, contextual=True, verbose=False)
+
+        #Get average reward at the end
+        ravg = np.sum(rewards) / len(rewards)
+        metric = ravg
+        print('Config {}: Mean average reward: {}'.format(run, metric))
+        # Select on the metric averaged over trials
+        if metric > optim_metric:
+            print('Config {}: New best'.format(run))
+            optim_metric = metric
             optim_run = run
             optim_params['alpha'] = alpha
 
-    print("Done. Best run: {}, best hyperparameters: alpha={}"
-          .format(optim_run, optim_params['alpha']))
+    print("Done. Best config: {}, average reward: {}, hyperparams: {}"
+          .format(optim_run, optim_metric, optim_params))
 
-
-# Grid scale 1 best: alpha = 0.2: cumulated reward = 1427
-# Grid scale 2 best: alpha = 0.16: cumulated reward = 1432
+# Grid scale 1: Best config: 3, average reward: 0.2854156877066617,
+# hyperparams: {'alpha': 0.2}
+# Grid scale 2: Best config: 6, average reward: 0.286418224719455,
+# hyperparams: {'alpha': 0.16}
