@@ -36,7 +36,7 @@ def get_moving_average(rewards):
     return np.cumsum(rewards) / np.arange(1, len(rewards)+1)
 
 
-def train(bandit, click_rates, profiles, contextual=True):
+def train(bandit, click_rates, profiles, contextual=True, verbose=True):
 
     if not contextual:
         profiles = [None]* len(click_rates)
@@ -69,10 +69,10 @@ def train(bandit, click_rates, profiles, contextual=True):
         best_rsum += rewards[best_arm]
         pulled_arms.append(arm)
         rewards_list.append(reward)
-
-    print('Done. Time: {}'.format(timedelta(seconds=time.time() - since)))
-    print("Cumulated reward: {}".format(rsum))
-    print("Empirical regret: {}".format(best_rsum - rsum))
+    if verbose:
+        print('Done. Time: {}'.format(timedelta(seconds=time.time() - since)))
+        print("Cumulated reward: {}".format(rsum))
+        print("Empirical regret: {}".format(best_rsum - rsum))
     # Post-process results
     # ravg_list = (rsum_list / np.arange(1, j+1)).tolist()
     # regret_list = np.subtract(best_rsum_list, rsum_list).tolist()
@@ -111,7 +111,7 @@ if __name__ == '__main__':
     kwargs = dict()
     algorithm = args.algorithm
     if algorithm == 'epsilon-greedy':
-        kwargs = dict(epsilon=0.1, epsilon_decay=0.999)
+        kwargs = dict(epsilon=0.15, epsilon_decay=0.999)
     if algorithm == 'lin-ucb':
         kwargs = dict(alpha=0.16)
 

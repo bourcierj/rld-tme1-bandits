@@ -41,7 +41,7 @@ if __name__ == '__main__':
         # Get any hyperparameters
         kwargs = dict()
         if algorithm == 'epsilon-greedy':
-            kwargs = dict(epsilon=0.1, epsilon_decay=0.999)
+            kwargs = dict(epsilon=0.15, epsilon_decay=0.999)
         if algorithm == 'lin-ucb':
             kwargs = dict(alpha=0.16)
 
