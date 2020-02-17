@@ -8,7 +8,7 @@ from bandits import *
 
 def parse_args():
     """Parse command line arguments"""
-    parser = argparse.ArgumentParser(description="Bandits algorithm on a click-through "
+    parser = argparse.ArgumentParser(description="Bandits algorithms on a click-through "
                                      "rate dataset.")
     parser.add_argument('--algorithm', '-a', type=str, default='epsilon-greedy')
     parser.add_argument('--plot', action='store_true')
@@ -80,7 +80,7 @@ def train(bandit, click_rates, profiles, contextual=True):
     return pulled_arms, rewards_list
     # rsum_list, ravg_list, regret_list
 
-def get_bandit_instance(name, num_arms, context_dim=None, **kwargs):
+def get_bandit_instance(algorithm, num_arms, context_dim=None, **kwargs):
 
     mapping = {'random': lambda: Random(num_arms),
                'static-best': lambda: StaticBest(num_arms),
@@ -91,9 +91,9 @@ def get_bandit_instance(name, num_arms, context_dim=None, **kwargs):
                'lin-ucb': lambda: LinUCB(num_arms, context_dim, **kwargs)}
 
     try:
-        return mapping[name]()
+        return mapping[algorithm]()
     except KeyError:
-        raise ValueError("Unknown algorithm: {}".format(name))
+        raise ValueError("Unknown algorithm: {}".format(algorithm))
 
 
 if __name__ == '__main__':
@@ -107,15 +107,17 @@ if __name__ == '__main__':
     random.seed(0)
     np.random.seed(0)
 
+    # Get any hyperparameters
     kwargs = dict()
-    if args.algorithm == 'epsilon-greedy':
+    algorithm = args.algorithm
+    if algorithm == 'epsilon-greedy':
         kwargs = dict(epsilon=0.1, epsilon_decay=0.999)
-    if args.algorithm == 'lin-ucb':
+    if algorithm == 'lin-ucb':
         kwargs = dict(alpha=0.16)
 
-    bandit = get_bandit_instance(args.algorithm, num_arms, context_dim, **kwargs)
+    bandit = get_bandit_instance(algorithm, num_arms, context_dim, **kwargs)
     contextual = False
-    if args.algorithm == 'lin-ucb':
+    if algorithm == 'lin-ucb':
         contextual = True
 
     print("Expected reward of every advertiser:")
@@ -123,7 +125,7 @@ if __name__ == '__main__':
     print(("{:<12}" + "{:<12d}" * num_arms).format("Advertiser", *range(num_arms)))
     print(("{:<12}" + "{:<12.5f}" * num_arms).format("Reward", *get_expected_rewards(click_rates)))
     print()
-    print("Evaluating {} strategy on CTR data.".format(args.algorithm.upper()))
+    print("Evaluating {} strategy on CTR data.".format(algorithm.upper()))
 
     pulled_arms, rewards = \
         train(bandit, click_rates, profiles, contextual)
@@ -139,15 +141,22 @@ if __name__ == '__main__':
         std_rewards = (get_moving_average(np.power(rewards, 2)) - avg_rewards**2)** 0.5
         # Plot
         fig, axs = plt.subplots(2, figsize=(12,8))
-        axs[0].plot(range(num_articles), avg_rewards, label=args.algorithm)
+
+        params_str = ', '.join("{}={}".format(k, v) for (k, v) in kwargs.items())
+        if params_str:
+            params_str = '\n('+ params_str +')'
+
+        axs[0].plot(range(num_articles), avg_rewards, label=algorithm + params_str)
         # plt.plot(range(num_articles), regret_list, label='Regret')
         axs[0].fill_between(range(num_articles), avg_rewards - std_rewards/2,
                             avg_rewards + std_rewards/2, alpha=0.4)
-        axs[1].scatter(range(num_articles), pulled_arms, s=3., alpha=0.8, facecolor=None, label=args.algorithm)
+        axs[1].scatter(range(num_articles), pulled_arms, s=3., alpha=0.8, facecolor=None,
+                       label=algorithm)
 
         axs[0].set_ylabel('Avg reward')
+        axs[0].set_ylim(-0.01415, 0.36236)
         axs[0].legend(loc='lower right')
         axs[1].set_ylabel('Pulled arm')
         axs[1].set_yticks(range(num_arms))
-        plt.tight_layout()
+        fig.savefig('figures/plot_{}.png'.format(algorithm), dpi=300, bbox_inches='tight')
         plt.show()

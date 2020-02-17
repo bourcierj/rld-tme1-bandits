@@ -7,7 +7,7 @@ from run_bandits import *
 
 def parse_args():
     """Parse command line arguments"""
-    parser = argparse.ArgumentParser(description="Bandits algorithm on a click-through "
+    parser = argparse.ArgumentParser(description="Bandits algorithms on a click-through "
                                      "rate dataset.")
     parser.add_argument('--plot', action='store_true')
     return parser.parse_args()
@@ -27,16 +27,18 @@ if __name__ == '__main__':
     if args.plot:
         import matplotlib.pyplot as plt
         plt.style.use('seaborn')
-        fig, axs = plt.subplots(2, figsize=(12,8))
+        fig1, ax1 = plt.subplots(figsize=(12,8))
+        fig2, ax2 = plt.subplots(3, 2, figsize=(12, 8))
 
     print("Expected reward of every advertiser:")
 
     print(("{:<12}" + "{:<12d}" * num_arms).format("Advertiser", *range(num_arms)))
     print(("{:<12}" + "{:<12.5f}" * num_arms).format("Reward", *get_expected_rewards(click_rates)))
-
+    ax_i = 0
     for algorithm in ('random', 'static-best', 'optimal', 'epsilon-greedy', 'ucb',
                       'ucb-v', 'lin-ucb'):
 
+        # Get any hyperparameters
         kwargs = dict()
         if algorithm == 'epsilon-greedy':
             kwargs = dict(epsilon=0.1, epsilon_decay=0.999)
@@ -61,15 +63,21 @@ if __name__ == '__main__':
             ls = None
             if baseline:
                 ls = ':'
-            elif contextual:
-                ls = '--'
-            axs[0].plot(range(num_articles), avg_rewards, linestyle=ls, label=algorithm)
-            axs[1].scatter(range(num_articles), pulled_arms, s=3., alpha=0.8, facecolor=None)
+            line, = ax1.plot(range(num_articles), avg_rewards, linestyle=ls, label=algorithm)
+            if algorithm != 'random':
+                ax2i = ax2.flat[ax_i]
+                ax2i.scatter(range(num_articles), pulled_arms, s=3., color=line.get_color(),
+                             alpha=0.8, facecolor=None)
+                ax2i.set_title(algorithm)
+                ax2i.set_ylabel('Pulled arm')
+                ax2i.set_yticks(range(num_arms))
+                ax_i += 1
 
     if args.plot:
-        axs[0].set_ylabel('Avg reward')
-        axs[0].legend(loc='lower right')
-        axs[1].set_ylabel('Pulled arm')
-        axs[1].set_yticks(range(10))
-        plt.tight_layout()
+        ax1.set_ylabel('Avg reward')
+        ax1.legend(loc=(0.81, 0.22))
+        fig1.savefig('figures/avg_rewards_all.png', dpi=300, bbox_inches='tight')
+        plt.show()
+        fig2.tight_layout()
+        fig2.savefig('figures/pulled_arms_all.png', dpi=300, bbox_inches='tight')
         plt.show()
