@@ -1,6 +1,7 @@
 import argparse
 import random
 import numpy as np
+import scipy.stats
 import time
 from datetime import timedelta
 
@@ -31,9 +32,20 @@ def get_expected_rewards(click_rates):
     """
     return np.mean(np.stack(click_rates, 0), 0)
 
-def get_moving_average(rewards):
+def moving_avg(rewards):
     """Return the moving average of the rewards over time."""
     return np.cumsum(rewards) / np.arange(1, len(rewards)+1)
+
+def moving_mean_confidence_interval(rewards, confidence=.95):
+
+    def mci(serie):
+        n = len(serie)
+        m, se = np.mean(serie), scipy.stats.sem(serie)
+        h = se * scipy.stats.t.ppf((1 + confidence) / 2., n-1)
+        return m-h, m+h
+
+    lower, upper = tuple(zip(*[mci(rewards[:i]) for i in range(1, len(rewards)+1)]))
+    return np.array(lower), np.array(upper)
 
 
 def train(bandit, click_rates, profiles, contextual=True, verbose=True):
@@ -136,9 +148,9 @@ if __name__ == '__main__':
         # sns.set()
         plt.style.use('seaborn')
         # Get average rewards
-        avg_rewards = get_moving_average(rewards)
-        # Get rewards standard deviation
-        std_rewards = (get_moving_average(np.power(rewards, 2)) - avg_rewards**2)** 0.5
+        avg_rewards = moving_avg(rewards)
+        # Get mean confidence intervals
+        mci_rewards = moving_mean_confidence_intervals(rewards)
         # Plot
         fig, axs = plt.subplots(2, figsize=(12,8))
 
@@ -147,9 +159,7 @@ if __name__ == '__main__':
             params_str = '\n('+ params_str +')'
 
         axs[0].plot(range(num_articles), avg_rewards, label=algorithm + params_str)
-        # plt.plot(range(num_articles), regret_list, label='Regret')
-        axs[0].fill_between(range(num_articles), avg_rewards - std_rewards/2,
-                            avg_rewards + std_rewards/2, alpha=0.4)
+        axs[0].fill_between(range(num_articles), mci_rewards[0], mci_rewards[1], alpha=0.4)
         axs[1].scatter(range(num_articles), pulled_arms, s=3., alpha=0.8, facecolor=None,
                        label=algorithm)
 

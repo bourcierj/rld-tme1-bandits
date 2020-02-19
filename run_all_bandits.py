@@ -58,12 +58,18 @@ if __name__ == '__main__':
 
         if args.plot:
             # Get average rewards
-            avg_rewards = get_moving_average(rewards)
+            avg_rewards = moving_avg(rewards)
+            # Get mean confidence intervals
+            conf = .99
+            mci_rewards = moving_mean_confidence_interval(rewards, conf)
+
             # Plot
             ls = None
             if baseline:
                 ls = ':'
             line, = ax1.plot(range(num_articles), avg_rewards, linestyle=ls, label=algorithm)
+            ax1.fill_between(range(num_articles), mci_rewards[0], mci_rewards[1], alpha=0.4)
+
             if algorithm != 'random':
                 ax2i = ax2.flat[ax_i]
                 ax2i.scatter(range(num_articles), pulled_arms, s=3., color=line.get_color(),
@@ -74,9 +80,10 @@ if __name__ == '__main__':
                 ax_i += 1
 
     if args.plot:
-        ax1.set_ylabel('Avg reward')
+        ax1.set_ylabel('Avg reward (w/ {:.0%} confidence interval)'.format(conf))
+        ax1.set_ylim((0.020798076458847778, 0.3216468127248515))
         ax1.legend(loc=(0.81, 0.22))
-        fig1.savefig('figures/avg_rewards_all.png', dpi=300, bbox_inches='tight')
+        fig1.savefig('figures/avg_rewards_all_mci.png', dpi=300, bbox_inches='tight')
         plt.show()
         fig2.tight_layout()
         fig2.savefig('figures/pulled_arms_all.png', dpi=300, bbox_inches='tight')
